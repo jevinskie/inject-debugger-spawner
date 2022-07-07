@@ -12,4 +12,5 @@ ExternalProject_Get_property(frida-gum-prebuilt SOURCE_DIR)
 
 add_library(frida-gum STATIC IMPORTED GLOBAL)
 set_target_properties(frida-gum PROPERTIES IMPORTED_LOCATION ${SOURCE_DIR}/libfrida-gum.a)
-
+target_include_directories(frida-gum INTERFACE ${SOURCE_DIR})
+add_dependencies(frida-gum frida-gum-prebuilt)
