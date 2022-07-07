@@ -26,5 +26,6 @@ endif ()
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_EXTENSIONS YES)
 
+add_subdirectory(3rdparty)
 add_subdirectory(lib)
 add_subdirectory(test)
