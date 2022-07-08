@@ -2,6 +2,8 @@
 #include <cassert>
 #include <cstdio>
 
+#include <fmt/format.h>
+
 #include "frida-gum.h"
 
 struct Listener {
@@ -17,5 +19,5 @@ struct _InvocationData {
 };
 
 __attribute__((constructor)) static void init_injdbgspawn() {
-    printf("hello from inj ctor.\n");
+    fmt::print("hello from inj ctor.\n");
 }
