@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <string>
+#include <unistd.h>
 #include <vector>
 
 #include <fmt/format.h>
@@ -15,7 +16,17 @@ struct Listener {
 };
 
 enum HookId {
+    HOOK_FORK,
     HOOK_VFORK,
+    HOOK_EXECL,
+    HOOK_EXECLP,
+    HOOK_EXECLE,
+    HOOK_EXECV,
+    HOOK_EXECVP,
+    HOOK_EXECPE,
+    HOOK_EXECVEAT,
+    HOOK_FEXECVE,
+    HOOK_POSIX_SPAWN,
 };
 
 struct _InvocationData {
