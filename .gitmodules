@@ -1,0 +1,3 @@
+[submodule "3rdparty/cpp-subprocess"]
+	path = 3rdparty/cpp-subprocess
+	url = https://github.com/arun11299/cpp-subprocess

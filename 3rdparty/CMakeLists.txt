@@ -1,16 +1,15 @@
-include(ExternalProject)
-
-
-ExternalProject_Add(frida-gum-prebuilt
-	URL https://github.com/frida/frida/releases/download/15.1.28/frida-gum-devkit-15.1.28-linux-x86_64.tar.xz
-    CONFIGURE_COMMAND ""
-	BUILD_COMMAND ""
-	INSTALL_COMMAND ""
-	UPDATE_COMMAND ""
+include(FetchContent)
+FetchContent_Declare(
+    frida-gum-prebuilt
+    URL https://github.com/frida/frida/releases/download/15.1.28/frida-gum-devkit-15.1.28-linux-x86_64.tar.xz
+    FETCHCONTENT_TRY_FIND_PACKAGE_MODE NEVER
 )
-ExternalProject_Get_property(frida-gum-prebuilt SOURCE_DIR)
+FetchContent_MakeAvailable(frida-gum-prebuilt)
+FetchContent_GetProperties(frida-gum-prebuilt SOURCE_DIR FRIDA_GUM_SRC_DIR)
 
 add_library(frida-gum STATIC IMPORTED GLOBAL)
-set_target_properties(frida-gum PROPERTIES IMPORTED_LOCATION ${SOURCE_DIR}/libfrida-gum.a)
-target_include_directories(frida-gum INTERFACE ${SOURCE_DIR})
-add_dependencies(frida-gum frida-gum-prebuilt)
+set_target_properties(frida-gum PROPERTIES IMPORTED_LOCATION ${FRIDA_GUM_SRC_DIR}/libfrida-gum.a)
+target_include_directories(frida-gum INTERFACE ${FRIDA_GUM_SRC_DIR})
+
+set(BUILD_TESTING OFF)
+add_subdirectory(cpp-subprocess)
