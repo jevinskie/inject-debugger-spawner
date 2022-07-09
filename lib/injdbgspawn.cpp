@@ -3,29 +3,32 @@
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
+#include <fcntl.h>
 #include <iostream>
 #include <limits.h>
 #include <map>
+#include <memory>
 #include <regex>
+#include <spawn.h>
 #include <string>
 #include <unistd.h>
 #include <utility>
 #include <vector>
 
 #include <boost/algorithm/string.hpp>
-#include <boost/process/search_path.hpp>
+// #include <boost/process/search_path.hpp>
 #include <boost/tokenizer.hpp>
 #include <fmt/format.h>
 
 #include "debugbreak.h"
-#include "magic_enum.hpp"
-#include "subprocess.hpp"
+// #include "subprocess.hpp"
 
 #ifdef USE_GUM
 /*
  * frida-gum hooking
  */
 #include "frida-gum.h"
+#include "magic_enum.hpp"
 
 static void spawn_debugger_if_requested();
 
@@ -36,6 +39,7 @@ struct _DBGListener {
 enum class _DBGHookId {
     HOOK_FORK,
     HOOK_VFORK,
+    HOOK_CLONE,
     HOOK_EXECL,
     HOOK_EXECLP,
     HOOK_EXECLE,
@@ -200,6 +204,9 @@ static std::string get_exe_path() {
 }
 
 static bool should_spawn_debugger() {
+    if (should_spawn_immediately()) {
+        return true;
+    }
     const auto re = std::regex{get_env_string("DBG_PAT")};
     return std::regex_search(get_exe_path(), re);
 }
@@ -242,18 +249,63 @@ static void sub_pid(std::vector<std::string> &spawn_args, pid_t pid) {
     }
 }
 
+static void Popen(const std::vector<std::string> &spawn_args) {
+    pid_t pid = -1;
+    std::vector<std::unique_ptr<char[]>> argv_uniq;
+    for (const auto &arg : spawn_args) {
+        argv_uniq.emplace_back(std::make_unique<char[]>(arg.size() + 1));
+        std::copy(arg.cbegin(), arg.cend(), argv_uniq[argv_uniq.size() - 1].get());
+    }
+    std::vector<char *> argv;
+    for (const auto &arg : argv_uniq) {
+        argv.emplace_back(arg.get());
+    }
+    argv.emplace_back(nullptr);
+
+    int res = posix_spawn(&pid, argv[0], nullptr, nullptr, argv.data(), environ);
+}
+
+static bool path_exists(const std::string &path) {
+    return !access(path.c_str(), X_OK);
+}
+
+static std::string search_path(const std::string &name) {
+    const auto path_var = get_env_string("PATH");
+    const char *op      = path_var.c_str();
+    const auto *nul_ptr = op + path_var.size();
+    const char *colon   = nullptr;
+    while ((colon = strchr(op, ':'))) {
+        const std::string dir{op, (size_t)(colon - op)};
+        const auto path = dir + "/" + name;
+        if (path_exists(path)) {
+            return path;
+        }
+        op = colon + 1;
+    }
+    if (op != nul_ptr) {
+        const std::string dir{op, (size_t)(nul_ptr - op)};
+        const auto path = dir + "/" + name;
+        if (path_exists(path)) {
+            fmt::print("loL: {:s}\n", path);
+            return path;
+        }
+    }
+    fmt::print("\"{:s}\" not found in $PATH\n", name);
+    exit(-1);
+}
+
 static void spawn_debugger() {
     const auto *spawn_cstr = getenv("DBG_SPAWN");
     std::vector<std::string> spawn_args;
     if (!spawn_cstr) {
-        const auto gnome_term_path = boost::process::search_path("gnome-terminal").string();
-        const auto gdb_path        = boost::process::search_path("gdb").string();
+        const auto gnome_term_path = search_path("gnome-terminal");
+        const auto gdb_path        = search_path("gdb");
         spawn_args                 = {gnome_term_path, "--", gdb_path, "-p", "%PID", "-ex", "c"};
     } else {
         spawn_args = shlex_split(spawn_cstr);
     }
     sub_pid(spawn_args, getpid());
-    auto proc = subprocess::Popen(spawn_args);
+    Popen(spawn_args);
 }
 
 static bool should_break() {

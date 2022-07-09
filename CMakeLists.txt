@@ -12,8 +12,11 @@ if (${FORCE_COLORED_OUTPUT})
     endif ()
 endif ()
 
-# add_compile_options(-Os -fvisibility=hidden -fvisibility-inlines-hidden -ffunction-sections -fdata-sections)
-# add_link_options(-Os -Wl,-dead_strip)
+add_compile_options(-fno-exceptions -fno-unwind-tables -fno-asynchronous-unwind-tables)
+add_compile_options(-Os -fvisibility=hidden -fvisibility-inlines-hidden -ffunction-sections -fdata-sections)
+add_link_options(-Wl,--gc-sections)
+# add_link_options(-Wl,-dead_strip)
+add_compile_options(-g0)
 
 # add_compile_options(-O0 -ggdb3 -fno-omit-frame-pointer)
 
