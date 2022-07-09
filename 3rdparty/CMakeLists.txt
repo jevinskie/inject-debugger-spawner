@@ -13,3 +13,5 @@ target_include_directories(frida-gum INTERFACE ${FRIDA_GUM_SRC_DIR})
 
 set(BUILD_TESTING OFF)
 add_subdirectory(cpp-subprocess)
+
+add_subdirectory(magic_enum)

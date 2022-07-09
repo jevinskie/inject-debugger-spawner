@@ -1,14 +1,20 @@
 #undef NDEBUG
+#include <algorithm>
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
+#include <iostream>
 #include <string>
 #include <unistd.h>
 #include <vector>
 
+#include <boost/algorithm/string.hpp>
+#include <boost/process/search_path.hpp>
+#include <boost/tokenizer.hpp>
 #include <fmt/format.h>
 
 #include "frida-gum.h"
+#include "magic_enum.hpp"
 #include "subprocess.hpp"
 
 struct Listener {
@@ -32,6 +38,20 @@ enum HookId {
 struct _InvocationData {
     gpointer path;
 };
+
+static std::vector<std::string> shlex_split(const std::string &s) {
+    // https://stackoverflow.com/a/541862 Ferruccio
+    const std::string sep1{""};     // don't let quoted arguments escape themselves
+    const std::string sep2{" "};    // split on spaces
+    const std::string sep3{"\"\'"}; // let it have quoted arguments
+
+    boost::escaped_list_separator<char> els{sep1, sep2, sep3};
+    boost::tokenizer<boost::escaped_list_separator<char>> tok{s, els};
+
+    std::vector<std::string> res;
+    std::copy(tok.begin(), tok.end(), std::back_inserter(res));
+    return res;
+}
 
 static bool should_spawn_debugger() {
     bool spawn = false;
@@ -71,9 +91,24 @@ static void clear_from_ld_preload() {
     assert(!setenv("LD_PRELOAD", pruned.c_str(), true));
 }
 
+static void sub_pid(std::vector<std::string> &spawn_args, pid_t pid) {
+    const auto pid_str = std::to_string(pid);
+    for (auto &arg : spawn_args) {
+        boost::replace_all(arg, "$PID", pid_str);
+    }
+}
+
 static void spawn_debugger() {
-    std::string proc_name{"gnome-calculator"};
-    auto proc = subprocess::Popen({proc_name});
+    const auto *spawn_cstr = getenv("DBG_SPAWN");
+    std::vector<std::string> spawn_args;
+    if (!spawn_cstr) {
+        const auto gdb_path = boost::process::search_path("gdb").string();
+        spawn_args          = {"gnome-terminal", "--", gdb_path, "-p", "$PID"};
+    } else {
+        spawn_args = shlex_split(spawn_cstr);
+    }
+    sub_pid(spawn_args, getpid());
+    auto proc = subprocess::Popen(spawn_args);
 }
 
 __attribute__((constructor)) static void init_injdbgspawn() {
@@ -82,4 +117,5 @@ __attribute__((constructor)) static void init_injdbgspawn() {
     if (should_spawn_debugger()) {
         spawn_debugger();
     }
+    kill(getpid(), SIGSTOP);
 }
