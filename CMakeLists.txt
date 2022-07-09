@@ -23,8 +23,10 @@ endif ()
 # add_compile_options(-fsanitize=memory)
 # add_link_options(-fsanitize=memory)
 
-set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_EXTENSIONS YES)
+# add_link_options(-fuse-ld=mold)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_EXTENSIONS NO)
 
 add_subdirectory(3rdparty)
 add_subdirectory(lib)
