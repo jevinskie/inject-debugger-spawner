@@ -25,7 +25,7 @@ endif ()
 
 # add_link_options(-fuse-ld=mold)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_EXTENSIONS NO)
 
 add_subdirectory(3rdparty)

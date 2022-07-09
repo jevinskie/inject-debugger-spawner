@@ -7,6 +7,7 @@
 #include <map>
 #include <string>
 #include <unistd.h>
+#include <utility>
 #include <vector>
 
 #include <boost/algorithm/string.hpp>
@@ -63,8 +64,11 @@ static GumInterceptor *interceptor;
 static GumInvocationListener *listener;
 static std::map<std::string, gpointer> name2sym;
 
-static std::string to_string(DBGHookId e) {
-    return "";
+static std::string to_string(DBGHookId hook_id) {
+    std::string name{magic_enum::enum_name(hook_id)};
+    boost::to_lower(name);
+    name = name.substr(5); // strlen("HOOK_") == 5
+    return name;
 }
 
 static void dbg_listener_on_enter(GumInvocationListener *listener, GumInvocationContext *ic) {}
@@ -88,6 +92,10 @@ static void hook_install() {
     assert(interceptor);
     listener = (GumInvocationListener *)g_object_new(DBG_TYPE_LISTENER, nullptr);
     assert(listener);
+
+    for (const auto hook_id : magic_enum::enum_values<DBGHookId>()) {
+        fmt::print("id: {} name: {:s}\n", std::to_underlying(hook_id), to_string(hook_id));
+    }
 }
 
 static void hook_uninstall() {
