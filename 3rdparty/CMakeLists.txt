@@ -11,6 +11,9 @@ add_library(frida-gum STATIC IMPORTED GLOBAL)
 set_target_properties(frida-gum PROPERTIES IMPORTED_LOCATION ${FRIDA_GUM_SRC_DIR}/libfrida-gum.a)
 target_include_directories(frida-gum INTERFACE ${FRIDA_GUM_SRC_DIR})
 
+add_library(debugbreak INTERFACE IMPORTED GLOBAL)
+target_include_directories(debugbreak INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/debugbreak)
+
 set(BUILD_TESTING OFF)
 add_subdirectory(cpp-subprocess)
 

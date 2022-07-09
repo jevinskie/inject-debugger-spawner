@@ -13,6 +13,7 @@
 #include <boost/tokenizer.hpp>
 #include <fmt/format.h>
 
+#include "debugbreak.h"
 #include "frida-gum.h"
 #include "magic_enum.hpp"
 #include "subprocess.hpp"
@@ -38,6 +39,20 @@ enum HookId {
 struct _InvocationData {
     gpointer path;
 };
+
+static bool get_env_bool(const char *envvar, bool def) {
+    const auto *cstr = getenv(envvar);
+    if (!cstr) {
+        return def;
+    }
+    std::string v{cstr};
+    boost::to_lower(v);
+    bool res = false;
+    if (v == "1" || v == "true" || v == "on") {
+        res = true;
+    }
+    return res;
+}
 
 static std::vector<std::string> shlex_split(const std::string &s) {
     // https://stackoverflow.com/a/541862 Ferruccio
@@ -104,7 +119,7 @@ static void spawn_debugger() {
     if (!spawn_cstr) {
         const auto gnome_term_path = boost::process::search_path("gnome-terminal").string();
         const auto gdb_path        = boost::process::search_path("gdb").string();
-        spawn_args                 = {gnome_term_path, "--", gdb_path, "-p", "$PID"};
+        spawn_args                 = {gnome_term_path, "--", gdb_path, "-p", "$PID", "-ex", "c"};
     } else {
         spawn_args = shlex_split(spawn_cstr);
     }
@@ -112,8 +127,8 @@ static void spawn_debugger() {
     auto proc = subprocess::Popen(spawn_args);
 }
 
-static bool should_wait() {
-    return true;
+static bool should_break() {
+    return get_env_bool("DBG_BREAK", false);
 }
 
 static pid_t get_tracer_pid() {
@@ -131,26 +146,20 @@ static pid_t get_tracer_pid() {
     const auto tpid_off = status.find(tpid_prefix);
     assert(tpid_off != std::string::npos);
     status.erase(0, tpid_off + tpid_prefix.size());
-    // fmt::print("status: {:s}\n", status);
     pid_t tracer_pid = std::stoi(status);
-    fmt::print("tracerpid: {:d}\n", tracer_pid);
     return tracer_pid;
 }
 
-extern "C" uint64_t dbg_wait;
-uint64_t dbg_wait;
-
 __attribute__((constructor)) static void init_injdbgspawn() {
     fmt::print("hello from inj ctor.\n");
-    clear_from_ld_preload();
     if (should_spawn_debugger()) {
+        clear_from_ld_preload();
         spawn_debugger();
-    }
-    if (should_wait()) {
-        dbg_wait = 1;
         while (get_tracer_pid() == 0) {
-            get_tracer_pid();
-            usleep(1000 * 1000);
+            usleep(1000 * 10);
+        }
+        if (should_break()) {
+            debug_break();
         }
     }
 }

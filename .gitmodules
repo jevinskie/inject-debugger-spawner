@@ -4,3 +4,6 @@
 [submodule "3rdparty/magic_enum"]
 	path = 3rdparty/magic_enum
 	url = https://github.com/Neargye/magic_enum
+[submodule "3rdparty/debugbreak"]
+	path = 3rdparty/debugbreak
+	url = https://github.com/scottt/debugbreak
