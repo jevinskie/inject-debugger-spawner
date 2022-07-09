@@ -254,7 +254,9 @@ static void Popen(const std::vector<std::string> &spawn_args) {
     std::vector<std::unique_ptr<char[]>> argv_uniq;
     for (const auto &arg : spawn_args) {
         argv_uniq.emplace_back(std::make_unique<char[]>(arg.size() + 1));
-        std::copy(arg.cbegin(), arg.cend(), argv_uniq[argv_uniq.size() - 1].get());
+        const auto &cstr = argv_uniq[argv_uniq.size() - 1];
+        std::copy(arg.cbegin(), arg.cend(), cstr.get());
+        cstr[arg.size()] = '\0';
     }
     std::vector<char *> argv;
     for (const auto &arg : argv_uniq) {
@@ -262,7 +264,7 @@ static void Popen(const std::vector<std::string> &spawn_args) {
     }
     argv.emplace_back(nullptr);
 
-    int res = posix_spawn(&pid, argv[0], nullptr, nullptr, argv.data(), environ);
+    assert(!posix_spawn(&pid, argv[0], nullptr, nullptr, argv.data(), environ));
 }
 
 static bool path_exists(const std::string &path) {
