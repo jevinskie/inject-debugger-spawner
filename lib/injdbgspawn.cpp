@@ -102,8 +102,9 @@ static void spawn_debugger() {
     const auto *spawn_cstr = getenv("DBG_SPAWN");
     std::vector<std::string> spawn_args;
     if (!spawn_cstr) {
-        const auto gdb_path = boost::process::search_path("gdb").string();
-        spawn_args          = {"gnome-terminal", "--", gdb_path, "-p", "$PID"};
+        const auto gnome_term_path = boost::process::search_path("gnome-terminal").string();
+        const auto gdb_path        = boost::process::search_path("gdb").string();
+        spawn_args                 = {gnome_term_path, "--", gdb_path, "-p", "$PID"};
     } else {
         spawn_args = shlex_split(spawn_cstr);
     }
@@ -111,11 +112,45 @@ static void spawn_debugger() {
     auto proc = subprocess::Popen(spawn_args);
 }
 
+static bool should_wait() {
+    return true;
+}
+
+static pid_t get_tracer_pid() {
+    static int status_fd = -1;
+    if (status_fd < 0) {
+        status_fd = open("/proc/self/status", O_RDONLY);
+        assert(status_fd >= 0);
+    }
+    assert(lseek(status_fd, 0, SEEK_SET) == 0);
+    char buf[1024];
+    assert(read(status_fd, buf, sizeof(buf)) > 0);
+    buf[sizeof(buf) - 1] = '\0';
+    std::string status{buf};
+    const std::string tpid_prefix{"\nTracerPid:\t"};
+    const auto tpid_off = status.find(tpid_prefix);
+    assert(tpid_off != std::string::npos);
+    status.erase(0, tpid_off + tpid_prefix.size());
+    // fmt::print("status: {:s}\n", status);
+    pid_t tracer_pid = std::stoi(status);
+    fmt::print("tracerpid: {:d}\n", tracer_pid);
+    return tracer_pid;
+}
+
+extern "C" uint64_t dbg_wait;
+uint64_t dbg_wait;
+
 __attribute__((constructor)) static void init_injdbgspawn() {
     fmt::print("hello from inj ctor.\n");
     clear_from_ld_preload();
     if (should_spawn_debugger()) {
         spawn_debugger();
     }
-    kill(getpid(), SIGSTOP);
+    if (should_wait()) {
+        dbg_wait = 1;
+        while (get_tracer_pid() == 0) {
+            get_tracer_pid();
+            usleep(1000 * 1000);
+        }
+    }
 }
