@@ -18,7 +18,7 @@
 #include <boost/algorithm/string.hpp>
 // #include <boost/process/search_path.hpp>
 #include <boost/tokenizer.hpp>
-#include <fmt/format.h>
+// #include <fmt/format.h>
 
 #include "debugbreak.h"
 // #include "subprocess.hpp"
@@ -152,7 +152,7 @@ static bool get_env_bool(const char *env_var, const bool *def = nullptr) {
     const auto *cstr = getenv(env_var);
     if (!cstr) {
         if (!def) {
-            fmt::print("Can't get env var \"{:s}\"\n", env_var);
+            // fmt::print("Can't get env var \"{:s}\"\n", env_var);
             exit(-1);
         }
         return *def;
@@ -170,7 +170,7 @@ static std::string get_env_string(const char *env_var, const std::string *def = 
     const auto *cstr = getenv(env_var);
     if (!cstr) {
         if (!def) {
-            fmt::print("Can't get env var \"{:s}\"\n", env_var);
+            // fmt::print("Can't get env var \"{:s}\"\n", env_var);
             exit(-1);
         }
         return *def;
@@ -288,11 +288,11 @@ static std::string search_path(const std::string &name) {
         const std::string dir{op, (size_t)(nul_ptr - op)};
         const auto path = dir + "/" + name;
         if (path_exists(path)) {
-            fmt::print("loL: {:s}\n", path);
+            // fmt::print("loL: {:s}\n", path);
             return path;
         }
     }
-    fmt::print("\"{:s}\" not found in $PATH\n", name);
+    // fmt::print("\"{:s}\" not found in $PATH\n", name);
     exit(-1);
 }
 
