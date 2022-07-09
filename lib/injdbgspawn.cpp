@@ -109,7 +109,7 @@ static void clear_from_ld_preload() {
 static void sub_pid(std::vector<std::string> &spawn_args, pid_t pid) {
     const auto pid_str = std::to_string(pid);
     for (auto &arg : spawn_args) {
-        boost::replace_all(arg, "$PID", pid_str);
+        boost::replace_all(arg, "%PID", pid_str);
     }
 }
 
@@ -119,7 +119,7 @@ static void spawn_debugger() {
     if (!spawn_cstr) {
         const auto gnome_term_path = boost::process::search_path("gnome-terminal").string();
         const auto gdb_path        = boost::process::search_path("gdb").string();
-        spawn_args                 = {gnome_term_path, "--", gdb_path, "-p", "$PID", "-ex", "c"};
+        spawn_args                 = {gnome_term_path, "--", gdb_path, "-p", "%PID", "-ex", "c"};
     } else {
         spawn_args = shlex_split(spawn_cstr);
     }
