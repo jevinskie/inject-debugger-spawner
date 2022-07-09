@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <libgen.h>
+#include <limits.h>
 #include <string>
 #include <unistd.h>
 
