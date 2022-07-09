@@ -38,7 +38,7 @@ enum class _DBGHookId {
     HOOK_EXECLE,
     HOOK_EXECV,
     HOOK_EXECVP,
-    HOOK_EXECPE,
+    HOOK_EXECVPE,
     HOOK_EXECVEAT,
     HOOK_FEXECVE,
     HOOK_POSIX_SPAWN,
@@ -62,7 +62,7 @@ G_DEFINE_TYPE_EXTENDED(DBGListener, dbg_listener, G_TYPE_OBJECT, 0,
 
 static GumInterceptor *interceptor;
 static GumInvocationListener *listener;
-static std::map<std::string, gpointer> name2sym;
+static std::map<std::string, gpointer> name2sym __attribute__((init_priority(2000)));
 
 static std::string to_string(DBGHookId hook_id) {
     std::string name{magic_enum::enum_name(hook_id)};
@@ -94,8 +94,27 @@ static void hook_install() {
     assert(listener);
 
     for (const auto hook_id : magic_enum::enum_values<DBGHookId>()) {
-        fmt::print("id: {} name: {:s}\n", std::to_underlying(hook_id), to_string(hook_id));
+        const auto hook_sym_name = to_string(hook_id);
+        const auto hook_sym_ptr =
+            GSIZE_TO_POINTER(gum_module_find_export_by_name("libc.so.6", hook_sym_name.c_str()));
+        if (!hook_sym_ptr) {
+            fmt::print("Couldn't lookup \"{:s}\" in libc.so.6\n", hook_sym_name);
+            exit(-1);
+        }
+        fmt::print("name: {:s} ptr: {:p}\n", hook_sym_name, fmt::ptr(hook_sym_ptr));
+        name2sym.insert(std::make_pair(hook_sym_name, hook_sym_ptr));
     }
+
+    gum_interceptor_begin_transaction(interceptor);
+
+    for (const auto hook_id : magic_enum::enum_values<DBGHookId>()) {
+        const auto hook_sym_name = to_string(hook_id);
+        const auto hook_sym_ptr  = name2sym[hook_sym_name];
+        const auto aret =
+            gum_interceptor_attach(interceptor, hook_sym_ptr, listener, GSIZE_TO_POINTER(hook_id));
+        assert(!aret);
+    }
+    gum_interceptor_end_transaction(interceptor);
 }
 
 static void hook_uninstall() {
@@ -241,7 +260,7 @@ static void spawn_debugger_if_requested() {
     }
 }
 
-__attribute__((constructor)) static void injdbgspawn_ctor() {
+__attribute__((constructor(3000))) static void injdbgspawn_ctor() {
     fmt::print("hello from inj ctor.\n");
     if (should_spawn_immediately()) {
         spawn_debugger_if_requested();
