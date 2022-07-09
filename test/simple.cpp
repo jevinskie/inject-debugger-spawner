@@ -3,6 +3,6 @@
 #include <cstdio>
 
 int main() {
-    printf("hello\n");
+    printf("hello from simple\n");
     return 0;
 }

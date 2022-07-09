@@ -269,6 +269,6 @@ __attribute__((constructor(3000))) static void injdbgspawn_ctor() {
     }
 }
 
-__attribute__((destructor)) static void injdbgspawn_dtor() {
+__attribute__((destructor(3000))) static void injdbgspawn_dtor() {
     hook_uninstall();
 }

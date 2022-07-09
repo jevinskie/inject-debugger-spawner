@@ -1,1 +1,4 @@
 add_executable(simple simple.cpp)
+
+add_executable(subproc subproc.cpp)
+target_link_libraries(subproc PRIVATE subprocess)
