@@ -152,7 +152,7 @@ static bool get_env_bool(const char *env_var, const bool *def = nullptr) {
     const auto *cstr = getenv(env_var);
     if (!cstr) {
         if (!def) {
-            // fmt::print("Can't get env var \"{:s}\"\n", env_var);
+            printf("Can't get env var \"%s\"\n", env_var);
             exit(-1);
         }
         return *def;
@@ -170,7 +170,7 @@ static std::string get_env_string(const char *env_var, const std::string *def = 
     const auto *cstr = getenv(env_var);
     if (!cstr) {
         if (!def) {
-            // fmt::print("Can't get env var \"{:s}\"\n", env_var);
+            printf("Can't get env var \"%s\"\n", env_var);
             exit(-1);
         }
         return *def;
@@ -211,6 +211,7 @@ static bool should_spawn_debugger() {
     return std::regex_search(get_exe_path(), re);
 }
 
+#if 0
 static void clear_from_ld_preload() {
     const auto orig_cstr = getenv("LD_PRELOAD");
     assert(orig_cstr);
@@ -241,6 +242,7 @@ static void clear_from_ld_preload() {
     }
     assert(!setenv("LD_PRELOAD", pruned.c_str(), true));
 }
+#endif
 
 static void sub_pid(std::vector<std::string> &spawn_args, pid_t pid) {
     const auto pid_str = std::to_string(pid);
@@ -249,8 +251,21 @@ static void sub_pid(std::vector<std::string> &spawn_args, pid_t pid) {
     }
 }
 
+static std::map<std::string, std::string> get_environ_map() {
+    std::map<std::string, std::string> res;
+    for (char **envp = environ; *envp; ++envp) {
+        const auto *eq  = strchr(*envp, '=');
+        const auto *nul = strchr(*envp, '\0');
+        assert(eq);
+        const auto *val_cstr = eq + 1;
+        const std::string name{*envp, (size_t)(eq - *envp)};
+        const std::string val{val_cstr, (size_t)(nul - val_cstr)};
+        res.emplace(std::make_pair(name, val));
+    }
+    return res;
+}
+
 static void Popen(const std::vector<std::string> &spawn_args) {
-    pid_t pid = -1;
     std::vector<std::unique_ptr<char[]>> argv_uniq;
     for (const auto &arg : spawn_args) {
         argv_uniq.emplace_back(std::make_unique<char[]>(arg.size() + 1));
@@ -264,7 +279,31 @@ static void Popen(const std::vector<std::string> &spawn_args) {
     }
     argv.emplace_back(nullptr);
 
-    assert(!posix_spawn(&pid, argv[0], nullptr, nullptr, argv.data(), environ));
+    auto env_map        = get_environ_map();
+    const auto lib_path = env_map.find("LD_LIBRARY_PATH");
+    if (lib_path != env_map.end()) {
+        env_map.erase(lib_path);
+    }
+    const auto preload = env_map.find("LD_PRELOAD");
+    if (preload != env_map.end()) {
+        env_map.erase(preload);
+    }
+    std::vector<std::unique_ptr<char[]>> envp_uniq;
+    for (const auto &env : env_map) {
+        const auto env_str = env.first + "=" + env.second;
+        envp_uniq.emplace_back(std::make_unique<char[]>(env_str.size() + 1));
+        const auto &cstr = envp_uniq[envp_uniq.size() - 1];
+        std::copy(env_str.cbegin(), env_str.cend(), cstr.get());
+        cstr[env_str.size()] = '\0';
+    }
+    std::vector<char *> envp;
+    for (const auto &env : envp_uniq) {
+        envp.emplace_back(env.get());
+    }
+    envp.emplace_back(nullptr);
+
+    pid_t pid = -1;
+    assert(!posix_spawn(&pid, argv[0], nullptr, nullptr, argv.data(), envp.data()));
 }
 
 static bool path_exists(const std::string &path) {
@@ -288,11 +327,10 @@ static std::string search_path(const std::string &name) {
         const std::string dir{op, (size_t)(nul_ptr - op)};
         const auto path = dir + "/" + name;
         if (path_exists(path)) {
-            // fmt::print("loL: {:s}\n", path);
             return path;
         }
     }
-    // fmt::print("\"{:s}\" not found in $PATH\n", name);
+    printf("\"%s\" not found in $PATH\n", name.c_str());
     exit(-1);
 }
 
@@ -302,7 +340,15 @@ static void spawn_debugger() {
     if (!spawn_cstr) {
         const auto gnome_term_path = search_path("gnome-terminal");
         const auto gdb_path        = search_path("gdb");
-        spawn_args                 = {gnome_term_path, "--", gdb_path, "-p", "%PID", "-ex", "c"};
+        spawn_args                 = {gnome_term_path,
+                                      "--",
+                                      gdb_path,
+                                      "-p",
+                                      "%PID",
+                                      "-ex",
+                                      "handle SIG41 nostop noprint pass",
+                                      "-ex",
+                                      "c"};
     } else {
         spawn_args = shlex_split(spawn_cstr);
     }
@@ -335,7 +381,6 @@ static pid_t get_tracer_pid() {
 }
 
 static void spawn_debugger_and_wait() {
-    clear_from_ld_preload();
     spawn_debugger();
     while (get_tracer_pid() == 0) {
         usleep(1000 * 10);
