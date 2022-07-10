@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.23)
+cmake_minimum_required(VERSION 3.16)
 
 project(injdbgspawn CXX)
 
@@ -28,7 +28,7 @@ add_compile_options(-g0)
 
 # add_link_options(-fuse-ld=mold)
 
-set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_EXTENSIONS NO)
 
 add_subdirectory(3rdparty)
