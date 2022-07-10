@@ -196,6 +196,10 @@ static void spawn_debugger() {
                                       "c"};
     } else {
         spawn_args = shlex_split(spawn_cstr);
+        assert(spawn_args.size() >= 1);
+        if (!path_exists(spawn_args[0])) {
+            spawn_args[0] = search_path(spawn_args[0]);
+        }
     }
     sub_pid(spawn_args, getpid());
     Popen(spawn_args);

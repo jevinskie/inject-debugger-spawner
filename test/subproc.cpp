@@ -18,6 +18,8 @@ static std::string get_exe_dir() {
 
 int main() {
     printf("hello from subproc parent\n");
-    subprocess::Popen({get_exe_dir() + "/simple"});
+    auto p = subprocess::Popen({get_exe_dir() + "/simple"});
+    p.wait();
+    printf("goodbye from subproc parent - child exited\n");
     return 0;
 }
