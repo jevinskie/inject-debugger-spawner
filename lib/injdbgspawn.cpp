@@ -16,133 +16,9 @@
 #include <vector>
 
 #include <boost/algorithm/string.hpp>
-// #include <boost/process/search_path.hpp>
 #include <boost/tokenizer.hpp>
-// #include <fmt/format.h>
 
 #include "debugbreak.h"
-// #include "subprocess.hpp"
-
-#ifdef USE_GUM
-/*
- * frida-gum hooking
- */
-#include "frida-gum.h"
-#include "magic_enum.hpp"
-
-static void spawn_debugger_if_requested();
-
-struct _DBGListener {
-    GObject parent;
-};
-
-enum class _DBGHookId {
-    HOOK_FORK,
-    HOOK_VFORK,
-    HOOK_CLONE,
-    HOOK_EXECL,
-    HOOK_EXECLP,
-    HOOK_EXECLE,
-    HOOK_EXECV,
-    // HOOK_EXECVP, // calls into execvpe on glibc
-    HOOK_EXECVPE,
-    HOOK_EXECVEAT,
-    HOOK_FEXECVE,
-    HOOK_POSIX_SPAWN,
-};
-
-struct _DBGInvocationData {
-    gpointer path;
-};
-
-using DBGListener       = _DBGListener;
-using DBGHookId         = _DBGHookId;
-using DBGInvocationData = _DBGInvocationData;
-
-static void dbg_listener_on_leave(GumInvocationListener *listener, GumInvocationContext *ic);
-static void dbg_listener_iface_init(gpointer g_iface, gpointer iface_data);
-
-#define DBG_TYPE_LISTENER (dbg_listener_get_type())
-G_DECLARE_FINAL_TYPE(DBGListener, dbg_listener, DBG, LISTENER, GObject)
-G_DEFINE_TYPE_EXTENDED(DBGListener, dbg_listener, G_TYPE_OBJECT, 0,
-                       G_IMPLEMENT_INTERFACE(GUM_TYPE_INVOCATION_LISTENER, dbg_listener_iface_init))
-
-static GumInterceptor *interceptor;
-static GumInvocationListener *listener;
-static std::map<DBGHookId, gpointer> hook2sym __attribute__((init_priority(2000)));
-
-static std::string to_string(DBGHookId hook_id) {
-    std::string name{magic_enum::enum_name(hook_id)};
-    boost::to_lower(name);
-    name = name.substr(5); // strlen("HOOK_") == 5
-    return name;
-}
-
-static void dbg_listener_on_enter(GumInvocationListener *listener, GumInvocationContext *ic) {
-    const auto *self      = DBG_LISTENER(listener);
-    const auto hook_id    = (DBGHookId)GUM_IC_GET_FUNC_DATA(ic, uintptr_t);
-    DBGInvocationData *id = nullptr;
-    const auto hook_name  = to_string(hook_id);
-    fmt::print("on_enter: {:s}\n", hook_name);
-}
-
-static void dbg_listener_on_leave(GumInvocationListener *listener, GumInvocationContext *ic) {
-    const auto *self      = DBG_LISTENER(listener);
-    const auto hook_id    = (DBGHookId)GUM_IC_GET_FUNC_DATA(ic, uintptr_t);
-    DBGInvocationData *id = nullptr;
-    const auto hook_name  = to_string(hook_id);
-    fmt::print("on_leave: {:s}\n", hook_name);
-}
-
-static void dbg_listener_class_init(DBGListenerClass *klass) {}
-
-static void dbg_listener_iface_init(gpointer g_iface, gpointer iface_data) {
-    auto *iface     = (GumInvocationListenerInterface *)g_iface;
-    iface->on_enter = dbg_listener_on_enter;
-    iface->on_leave = dbg_listener_on_leave;
-}
-
-static void dbg_listener_init(DBGListener *self) {}
-
-static void hook_install() {
-    fmt::print("hook_install\n");
-    gum_init_embedded();
-    interceptor = gum_interceptor_obtain();
-    assert(interceptor);
-    listener = (GumInvocationListener *)g_object_new(DBG_TYPE_LISTENER, nullptr);
-    assert(listener);
-
-    for (const auto hook_id : magic_enum::enum_values<DBGHookId>()) {
-        const auto hook_sym_name = to_string(hook_id);
-        const auto hook_sym_ptr =
-            GSIZE_TO_POINTER(gum_module_find_export_by_name("libc.so.6", hook_sym_name.c_str()));
-        if (!hook_sym_ptr) {
-            fmt::print("Couldn't lookup \"{:s}\" in libc.so.6\n", hook_sym_name);
-            exit(-1);
-        }
-        hook2sym.insert(std::make_pair(hook_id, hook_sym_ptr));
-    }
-
-    gum_interceptor_begin_transaction(interceptor);
-
-    for (const auto hook_id : magic_enum::enum_values<DBGHookId>()) {
-        const auto hook_sym_ptr = hook2sym[hook_id];
-        const auto aret =
-            gum_interceptor_attach(interceptor, hook_sym_ptr, listener, GSIZE_TO_POINTER(hook_id));
-        assert(!aret);
-    }
-    gum_interceptor_end_transaction(interceptor);
-}
-
-static void hook_uninstall() {
-    fmt::print("hook_uninstall\n");
-    if (interceptor) {
-        gum_interceptor_detach(interceptor, listener);
-    }
-    gum_deinit_embedded();
-}
-
-#endif
 
 /*
  * Debugger spawning
@@ -210,39 +86,6 @@ static bool should_spawn_debugger() {
     const auto re = std::regex{get_env_string("DBG_PAT")};
     return std::regex_search(get_exe_path(), re);
 }
-
-#if 0
-static void clear_from_ld_preload() {
-    const auto orig_cstr = getenv("LD_PRELOAD");
-    assert(orig_cstr);
-    const auto *orig_cstr_nul_ptr = orig_cstr + strlen(orig_cstr);
-    const char *op                = orig_cstr;
-    const char *colon             = nullptr;
-    const std::string our_lib{"libinjdbgspawn.so"};
-    std::vector<std::string> libs;
-    while ((colon = strchr(op, ':'))) {
-        const std::string lib{op, (size_t)(colon - op)};
-        if (!lib.ends_with(our_lib)) {
-            libs.emplace_back(lib);
-        }
-        op = colon + 1;
-    }
-    if (op != orig_cstr_nul_ptr) {
-        const std::string lib{op, (size_t)(orig_cstr_nul_ptr - op)};
-        if (!lib.ends_with(our_lib)) {
-            libs.emplace_back(lib);
-        }
-    }
-    std::string pruned;
-    if (!libs.empty()) {
-        for (size_t i = 0; i < libs.size() - 1; ++i) {
-            pruned += libs[i] + ":";
-        }
-        pruned += libs[libs.size() - 1];
-    }
-    assert(!setenv("LD_PRELOAD", pruned.c_str(), true));
-}
-#endif
 
 static void sub_pid(std::vector<std::string> &spawn_args, pid_t pid) {
     const auto pid_str = std::to_string(pid);
@@ -346,6 +189,8 @@ static void spawn_debugger() {
                                       "-p",
                                       "%PID",
                                       "-ex",
+                                      "handle SIGINT nostop noprint pass",
+                                      "-ex",
                                       "handle SIG41 nostop noprint pass",
                                       "-ex",
                                       "c"};
@@ -397,19 +242,5 @@ static void spawn_debugger_if_requested() {
 }
 
 __attribute__((constructor(3000))) static void injdbgspawn_ctor() {
-#ifdef USE_GUM
-    if (should_spawn_immediately()) {
-        spawn_debugger_if_requested();
-    } else {
-        hook_install();
-    }
-#else
     spawn_debugger_if_requested();
-#endif
 }
-
-#ifdef USE_GUM
-__attribute__((destructor(3000))) static void injdbgspawn_dtor() {
-    hook_uninstall();
-}
-#endif
