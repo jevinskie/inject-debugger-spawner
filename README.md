@@ -68,7 +68,7 @@ A regex that is checked against every process/subprocess to determine if the deb
 
 ### `DBG_SPAWN`
 The command to execute once the matching process is executed. `%PID` is is substituted with the target process ID.
-Defaults to `gnome-terminal -- gdb -p %PID -ex "handle SIGINT nostop noprint pass" -ex "handle SIG41 nostop noprint pass" -ex "continue"`
+Defaults to `gnome-terminal -- gdb -p %PID -ex "handle SIG41 nostop noprint pass" -ex "c"`
 
 ## Notes
 Works on Linux only right now but it could be ported to macOS without much effort and to Windows with some more effort.
