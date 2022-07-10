@@ -189,8 +189,6 @@ static void spawn_debugger() {
                                       "-p",
                                       "%PID",
                                       "-ex",
-                                      "handle SIGINT nostop noprint pass",
-                                      "-ex",
                                       "handle SIG41 nostop noprint pass",
                                       "-ex",
                                       "c"};
