@@ -8,6 +8,8 @@ the impetus for this project, using Questa's `vsim` simulator which
 ultimately spawns a `vsimk` kernel that loads a buggy plugin.
 2. Are not long-running so attaching manually via PID is impossible or a hassle.
 
+[Demo Video](https://user-images.githubusercontent.com/187848/178158765-563fa11b-883a-4a7f-bc16-fa333b4d00f9.webm)
+
 ## Requirements
 ```
 apt install cmake g++ libboost-dev make
